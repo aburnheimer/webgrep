@@ -1,0 +1,151 @@
+#!/usr/bin/env ruby
+#
+# webgrep
+# Andrew Burnheimer
+#
+# Periodically check a URL and report back when configured text is found.
+
+require 'rubygems'
+require 'httparty'
+require 'trollop'
+require 'active_support/core_ext/numeric'
+require 'json'
+require 'logging'
+require 'eventmachine'
+
+APP_NAME = "webgrep"
+Logging.logger.root.level = :debug
+
+log = Logging.logger[APP_NAME]
+log.add_appenders(Logging.appenders.stderr)
+log.level = :info
+
+out = Logging.logger[nil]
+out.add_appenders(Logging.appenders.stdout(nil, :level => :info,
+    :layout => Logging.layouts.pattern(:pattern => '[%d] %-5l: %m\n')))
+out.level = :info
+
+opts = Trollop::options do
+  version '#{APP_NAME} 0.0.1 (c) 2012 Andrew Burnheimer'
+
+  banner <<-EOS
+Check URLs and report back if text-patterns are found.  Result output is made to STDOUT.
+
+Usage:
+       #{APP_NAME} [options] -- url [url...]
+
+...where the [options] are:
+EOS
+
+  opt :verbose, 'Provide detailed output for debugging'
+  opt :'ignore-case', 'Ignore case distinctions in the patterns',
+      :short => '-i'
+  opt :'line-number', 'Prefix each line of output with the line ' +
+      'number within its URL.', :short => '-n'
+  opt :'only-matching', 'Show only the part of a matching line that ' +
+      'matches the patterns', :short => '-o'
+  opt :recursive, 'Read all linked-to pages, recursively', :short => '-r'
+  opt :regexp, 'Regex pattern to check URL for.  Multiple patterns ' +
+      'may be provided', :short => '-e', :type => :strings,
+      :multi => true
+  opt :repeat, 'Periodically repeat the fetch-and-search operation ' +
+      'until interrupted', :short => '-p'
+  opt :period, 'Delay to wait between repeated polls of URLs, in words',
+      :default => '5 minutes', :short => '-t'
+end
+
+log.level = :debug if opts[:verbose]
+
+log.debug "Set command-line options follow:"
+opts.each do |parameter,value|
+  log.debug %Q|#{parameter}: #{value.class} (#{value.inspect})|
+end
+
+raise NotImplementedError if opts[:'ignore-case'] ||
+    opts[:'line-number'] || opts[:'only-matching'] || opts[:recursive]
+
+regexp = opts[:regexp].flatten
+log.debug "regexps: #{regexps.inspect}"
+
+if regexps.empty?
+  raise ArgumentError.new "Must provide at least one regexp"
+end
+
+urls = Array.new
+ARGV.each do |url|
+  urls << url
+end
+log.debug "urls: #{urls.inspect}"
+
+if urls.empty?
+  raise ArgumentError.new "Must provide at least one url, end options " +
+      "with --"
+end
+
+case opts[:period]
+when /^[\d]+(\.[\d]+){0,1}$/ # Numeric
+  delay_secs = eval "#{opts[:period].to_i}.seconds"
+else # String, time in words
+  delay_secs = eval opts[:period].gsub(/ /, '.')
+end
+log.debug "delay_secs: #{delay_secs.inspect}"
+
+#### DONE OPTION AND ARGUMENT HANDLING ####
+
+if opts[:repeat]
+  exit_status = 2
+  EventMachine::run do
+
+    EventMachine::add_periodic_timer delay_secs do # seconds
+      urls.each do |url|
+        log.debug "Fetching #{url.inspect}..."
+        response = HTTParty.get(url)
+
+        regexps.each do |regexp|
+          regex = eval "/#{regexp}/"
+
+          num = response.scan(regex).size
+
+          if num > 0
+            exit_status = 0 # latch to success exit status
+            out.info "#{num} occurrence(s) of /#{regexp}/ seen at #{url}"
+          else
+            out.info "/#{regexp}/ not seen at #{url}"
+          end
+        end
+      end
+    end
+
+    Signal.trap('TERM') do
+      out.info "Term-signal caught, finishing after periodic_timer"
+      EventMachine.stop
+    end
+
+    Signal.trap('INT') do
+      out.info "Interrupt caught, finishing after periodic_timer"
+      EventMachine.stop
+    end
+  end
+
+  exit exit_status
+
+else
+  exit_status = 2
+
+  urls.each do |url|
+    log.debug "Fetching #{url.inspect}..."
+    response = HTTParty.get(url)
+
+    regexps.each do |regexp|
+      regex = eval "/#{regexp}/"
+
+      num = response.scan(regex).size
+
+      if num > 0
+        exit_status = 0 # latch to success exit status
+        out.info "#{num} occurrence(s) of /#{regexp}/ seen at #{url}"
+      end
+    end
+  end
+  exit exit_status
+end
