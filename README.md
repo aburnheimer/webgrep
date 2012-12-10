@@ -64,4 +64,4 @@ This project was initiated by Andrew Burnheimer.
   * Twitter:
     * @aburnheimer
     * Github:
-      * https://github.com/aburnheimear/
+      * https://github.com/aburnheimer/
