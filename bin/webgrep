@@ -14,6 +14,9 @@ require 'logging'
 require 'eventmachine'
 
 APP_NAME = "webgrep"
+
+APP_VERSION = File.open(File.expand_path \
+    File.join(File.dirname(__FILE__), '../VERSION')).read.strip
 Logging.logger.root.level = :debug
 
 log = Logging.logger[APP_NAME]
@@ -26,7 +29,7 @@ out.add_appenders(Logging.appenders.stdout(nil, :level => :info,
 out.level = :info
 
 opts = Trollop::options do
-  version '#{APP_NAME} 0.0.1 (c) 2012 Andrew Burnheimer'
+  version "#{APP_NAME} #{APP_VERSION} (c) 2012 Andrew Burnheimer"
 
   banner <<-EOS
 Check URLs and report back if text-patterns are found.  Result output is made to STDOUT.
@@ -116,6 +119,7 @@ if opts[:repeat]
       end
     end
 
+    # XXX Signals shouldn't wait for existing periodic_timers
     Signal.trap('TERM') do
       out.info "Term-signal caught, finishing after periodic_timer"
       EventMachine.stop
