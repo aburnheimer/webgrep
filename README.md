@@ -4,8 +4,9 @@ webgrep
 Check URLs and report back if text-patterns are found.  Behavior is
 sought to emulate the CLI tool grep as close as possible.
 
-Similar to grep, URLs may checked for the provided text-patterns once,
-or they may be polled for the patterns periodically.
+URLs may be checked for the provided text-patterns only-once similarly
+to grep, or they may be polled for the patterns over and over at a set
+period.
 
 Result output is made to STDOUT.
                                                                          
