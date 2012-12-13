@@ -67,7 +67,7 @@ end
 raise NotImplementedError if opts[:'ignore-case'] ||
     opts[:'line-number'] || opts[:'only-matching'] || opts[:recursive]
 
-regexp = opts[:regexp].flatten
+regexps = opts[:regexp].flatten
 log.debug "regexps: #{regexps.inspect}"
 
 if regexps.empty?
